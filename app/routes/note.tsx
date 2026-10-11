@@ -15,8 +15,8 @@ export async function action({ params }: Route.ActionArgs) {
   return redirect("/");
 }
 
-export function meta({ data }: Route.MetaArgs) {
-  return [{ title: data?.note.title ?? "Note" }];
+export function meta() {
+  return [{ title: "Note" }];
 }
 
 export default function Note({ loaderData }: Route.ComponentProps) {
