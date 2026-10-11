@@ -1,7 +1,10 @@
 import "dotenv/config";
 import pg from "pg";
 
-const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: 5000,
+});
 
 export type Note = {
   id: number;
@@ -15,6 +18,10 @@ export async function getNotes() {
     "SELECT id, title, content, created_at FROM notes ORDER BY created_at DESC"
   );
   return rows;
+}
+
+export async function checkDatabase() {
+  await pool.query("SELECT 1");
 }
 
 export async function getNote(id: number) {
