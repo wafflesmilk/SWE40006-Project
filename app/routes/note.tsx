@@ -22,18 +22,30 @@ export function meta() {
 export default function Note({ loaderData }: Route.ComponentProps) {
   const { note } = loaderData;
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <Link to="/" className="text-blue-600">← Back to notes</Link>
-      <h1 className="my-4 text-2xl font-bold">{note.title}</h1>
-      <p className="mb-2 text-sm text-gray-500">
-        {new Date(note.created_at).toLocaleString()}
-      </p>
-      <p className="mb-6 whitespace-pre-wrap">{note.content}</p>
-      <Form method="post">
-        <button type="submit" className="rounded bg-red-600 px-4 py-2 text-white">
-          Delete note
-        </button>
-      </Form>
+    <main className="mx-auto max-w-3xl px-4 py-8">
+      <Link to="/" className="text-sm text-blue-600 hover:underline">
+        ← Back to notes
+      </Link>
+
+      <article className="mt-4 rounded-xl border border-gray-200 p-6 shadow-sm dark:border-gray-800">
+        <h1 className="text-2xl font-bold">{note.title}</h1>
+        <p className="mt-1 text-sm text-gray-500">
+          Created {new Date(note.created_at).toLocaleString()}
+        </p>
+        <hr className="my-5 border-gray-200 dark:border-gray-800" />
+        <p className="whitespace-pre-wrap leading-relaxed">{note.content}</p>
+      </article>
+
+      <div className="mt-6 flex justify-end">
+        <Form method="post">
+          <button
+            type="submit"
+            className="rounded-lg bg-red-600 px-4 py-2 font-medium text-white shadow-sm hover:bg-red-700"
+          >
+            Delete note
+          </button>
+        </Form>
+      </div>
     </main>
   );
 }
