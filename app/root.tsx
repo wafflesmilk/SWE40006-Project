@@ -1,5 +1,6 @@
 import {
   isRouteErrorResponse,
+  Link,
   Links,
   Meta,
   Outlet,
@@ -42,7 +43,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  return (
+    <div className="flex min-h-screen flex-col">
+      <header className="border-b border-gray-200 dark:border-gray-800">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
+          <Link to="/" className="text-xl font-bold tracking-tight">
+            Online Notes
+          </Link>
+          <span className="text-sm text-gray-500">SWE40006 · Group 1</span>
+        </div>
+      </header>
+      <div className="flex-1">
+        <Outlet />
+      </div>
+      <footer className="border-t border-gray-200 py-4 text-center text-sm text-gray-500 dark:border-gray-800">
+        Built with React Router, PostgreSQL and Docker
+      </footer>
+    </div>
+  );
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
