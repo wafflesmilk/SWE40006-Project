@@ -16,5 +16,10 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "text-summary"],
     },
+    env: {
+      DATABASE_URL:
+        process.env.TEST_DATABASE_URL ??
+        "postgres://test:test@localhost:5432/app_test",
+    },
   },
 });
