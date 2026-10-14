@@ -21,6 +21,21 @@ jobs:
       group: ci-test-${{ github.ref }}
       cancel-in-progress: true # cancel stale runs if additional commits are made to the PR
 
+    # Docker container running PostgreSQL which is required to run the integration tests
+    services:
+      db:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test_user -d test_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
