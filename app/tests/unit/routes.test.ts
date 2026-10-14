@@ -1,9 +1,10 @@
 //----- Unit tests for the different page routes ----//
 
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import Home from "../../routes/home";
 
-// Create mock versions of the database functions.
-// vi.hoisted ensures these exist before vi.mock is processed.
+// create mock versions of the database functions
 const {
   checkDatabaseMock,
   getNotesMock,
@@ -18,7 +19,7 @@ const {
   deleteNoteMock: vi.fn(),
 }));
 
-// Replace the functions from db.server.ts with mocks.
+// replace the functions from db.server.ts with mocks
 vi.mock("~/db.server", () => ({
   checkDatabase: checkDatabaseMock,
   getNotes: getNotesMock,
@@ -27,11 +28,8 @@ vi.mock("~/db.server", () => ({
   deleteNote: deleteNoteMock,
 }));
 
-// Import the route functions after defining the database mock.
 import { loader as healthLoader } from "../../routes/health";
-
 import { loader as homeLoader, meta as homeMeta } from "../../routes/home";
-
 import {
   action as newNoteAction,
   meta as newNoteMeta,
@@ -43,14 +41,13 @@ import {
   meta as noteMeta,
 } from "../../routes/note";
 
-// Reset all mock call history and behaviour before each test.
+// reset mocks before each test
 beforeEach(() => {
   vi.resetAllMocks();
 });
 
-//----- Unit tests for the health route ----//
-
-describe("health route", () => {
+// tests for health route
+describe("health", () => {
   test("returns a successful response when the database is reachable", async () => {
     checkDatabaseMock.mockResolvedValue(undefined);
 
@@ -67,7 +64,7 @@ describe("health route", () => {
   });
 
   test("returns a 503 response when the database is unreachable", async () => {
-    checkDatabaseMock.mockRejectedValue(new Error("Database unavailable"));
+    checkDatabaseMock.mockRejectedValue(new Error("Database unreachable"));
 
     const response = await healthLoader();
     const body = await response.json();
@@ -82,8 +79,7 @@ describe("health route", () => {
   });
 });
 
-//----- Unit tests for the home route ----//
-
+// tests for home route
 describe("home route", () => {
   test("returns the page title", () => {
     const result = homeMeta({} as never);
@@ -135,9 +131,8 @@ describe("home route", () => {
   });
 });
 
-//----- Unit tests for the new note route ----//
-
-describe("new note route", () => {
+// tests for new note route
+describe("new note", () => {
   function createRequest(title: string, content: string): Request {
     const formData = new FormData();
 
@@ -241,9 +236,8 @@ describe("new note route", () => {
   });
 });
 
-//----- Unit tests for the individual note route ----//
-
-describe("note route", () => {
+// tests for individual note route
+describe("note", () => {
   test("returns the page title", () => {
     const result = noteMeta();
 
@@ -297,25 +291,6 @@ describe("note route", () => {
     expect(getNoteMock).toHaveBeenCalledWith(999);
   });
 
-  test("converts the note ID from a string to a number", async () => {
-    const note = {
-      id: 12,
-      title: "Test note",
-      content: "Test content",
-      created_at: new Date("2026-10-13"),
-    };
-
-    getNoteMock.mockResolvedValue(note);
-
-    await noteLoader({
-      params: {
-        id: "12",
-      },
-    } as never);
-
-    expect(getNoteMock).toHaveBeenCalledWith(12);
-  });
-
   test("deletes the requested note and redirects home", async () => {
     deleteNoteMock.mockResolvedValue(undefined);
 
@@ -333,7 +308,7 @@ describe("note route", () => {
     expect(response.headers.get("Location")).toBe("/");
   });
 
-  test("converts the note ID to a number before deleting it", async () => {
+  test("converts the ID to a number before deleting it", async () => {
     deleteNoteMock.mockResolvedValue(undefined);
 
     await noteAction({

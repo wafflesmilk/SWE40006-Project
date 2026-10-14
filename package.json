@@ -6,6 +6,8 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "test": "vitest run",
+    "test:unit": "vitest run app/tests/unit",
+    "test:integration": "vitest run app/tests/integration",
     "coverage": "vitest run --coverage",
     "start": "react-router-serve ./build/server/index.js",
     "typecheck": "react-router typegen && tsc"
@@ -24,6 +26,8 @@
     "@playwright/test": "^1.64.0",
     "@react-router/dev": "^8.4.0",
     "@tailwindcss/vite": "^4.2.2",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^22",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.2.18",
