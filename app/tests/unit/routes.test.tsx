@@ -1,7 +1,8 @@
 //----- Unit tests for the different page routes ----//
 
-import { beforeEach, describe, expect, test, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, afterEach, describe, expect, test, vi } from "vitest";
+import { MemoryRouter } from "react-router";
+import { cleanup, render, screen } from "@testing-library/react";
 import Home from "../../routes/home";
 
 // create mock versions of the database functions
@@ -41,9 +42,28 @@ import {
   meta as noteMeta,
 } from "../../routes/note";
 
+const sampleNotes = [
+  {
+    id: 2,
+    title: "Second note",
+    content: "Test note 2",
+    created_at: new Date("2026-10-13"),
+  },
+  {
+    id: 1,
+    title: "First note",
+    content: "Test note 1",
+    created_at: new Date("2026-10-10"),
+  },
+];
+
 // reset mocks before each test
 beforeEach(() => {
   vi.resetAllMocks();
+});
+
+afterEach(() => {
+  cleanup();
 });
 
 // tests for health route
@@ -92,29 +112,14 @@ describe("home route", () => {
   });
 
   test("loads notes from the database", async () => {
-    const notes = [
-      {
-        id: 2,
-        title: "Second note",
-        content: "Test note 2",
-        created_at: new Date("2026-10-13"),
-      },
-      {
-        id: 1,
-        title: "First note",
-        content: "Test note 1",
-        created_at: new Date("2026-10-10"),
-      },
-    ];
-
-    getNotesMock.mockResolvedValue(notes);
+    getNotesMock.mockResolvedValue(sampleNotes);
 
     const result = await homeLoader();
 
     expect(getNotesMock).toHaveBeenCalledOnce();
 
     expect(result).toEqual({
-      notes,
+      notes: sampleNotes,
     });
   });
 
@@ -318,5 +323,71 @@ describe("note", () => {
     } as never);
 
     expect(deleteNoteMock).toHaveBeenCalledWith(15);
+  });
+});
+
+// tests for the home component to improve branch coverage
+describe("home component", () => {
+  test("shows the empty state when there are no notes", () => {
+    render(
+      <MemoryRouter>
+        <Home
+          loaderData={{ notes: [] } as never}
+          params={{}}
+          matches={[] as never}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("0 notes")).toBeTruthy();
+    expect(screen.getByText("No notes yet.")).toBeTruthy();
+    expect(screen.getByText("Your notes will appear here.")).toBeTruthy();
+    expect(screen.queryByRole("list")).toBeNull();
+  });
+
+  test("does not show an empty state when notes exist", () => {
+    render(
+      <MemoryRouter>
+        <Home
+          loaderData={{ notes: sampleNotes }}
+          params={{}}
+          matches={[] as never}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText("No notes yet.")).toBeNull();
+    expect(screen.getByText("2 notes")).toBeTruthy();
+  });
+
+  test("caption says note instead of notes when there is a single note", () => {
+    render(
+      <MemoryRouter>
+        <Home
+          loaderData={{ notes: [sampleNotes[0]] }}
+          params={{}}
+          matches={[] as never}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByText("1 notes")).toBeNull();
+    expect(screen.getByText("1 note")).toBeTruthy();
+  });
+
+  test("renders every note with its own link", () => {
+    render(
+      <MemoryRouter>
+        <Home
+          loaderData={{ notes: sampleNotes }}
+          params={{}}
+          matches={[] as never}
+        />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("link", { name: /Second note/ }).getAttribute("href"),
+    ).toBe("/notes/2");
+    expect(
+      screen.getByRole("link", { name: /First note/ }).getAttribute("href"),
+    ).toBe("/notes/1");
   });
 });

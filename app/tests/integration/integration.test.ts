@@ -237,6 +237,15 @@ describe("new note action", () => {
     expect(rows).toHaveLength(0);
   });
 
+  test("returns an error when the both the title and content fields are empty", async () => {
+    const result = await newNoteAction(args({ request: submitForm({}) }));
+
+    expect(result).toEqual({ error: "Title and content are required." });
+
+    const { rows } = await pool.query("SELECT * FROM notes");
+    expect(rows).toHaveLength(0);
+  });
+
   test("rejects whitespace fields", async () => {
     const result = await newNoteAction(
       args({ request: submitForm({ title: "   ", content: "   " }) }),

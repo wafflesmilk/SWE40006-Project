@@ -4,8 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [tailwindcss(), reactRouter()],
-
+  plugins: [tailwindcss(), !process.env.VITEST && reactRouter()],
   resolve: {
     tsconfigPaths: true,
   },
@@ -16,6 +15,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "text-summary"],
     },
+    environment: "happy-dom", // needed to render a browser DOM for home component testing. Vitest uses Node by default
     env: {
       DATABASE_URL:
         process.env.TEST_DATABASE_URL ??
