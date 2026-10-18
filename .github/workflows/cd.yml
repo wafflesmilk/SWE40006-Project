@@ -1,0 +1,187 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: online-notes-deployment
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'
+      }}
+    runs-on: ubuntu-latest
+    env:
+      EC2_USER: ${{ vars.EC2_USER }}
+      STAGING_HOST: ${{ vars.STAGING_HOST }}
+      PRODUCTION_HOST: ${{ vars.PRODUCTION_HOST }}
+      STAGING_URL: ${{ vars.STAGING_URL }}
+      PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+
+    steps:
+      - name: Checkout successful CI commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Identify image from CI
+        env:
+          COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          SHORT_SHA="${COMMIT_SHA:0:7}"
+          APP_IMAGE="ghcr.io/wafflesmilk/swe40006-project:sha-$SHORT_SHA"
+          echo "APP_IMAGE=$APP_IMAGE" >> "$GITHUB_ENV"
+          echo "Deploying $APP_IMAGE"
+
+      - name: Configure SSH
+        env:
+          STAGING_KEY: ${{ secrets.STAGING_SSH_PRIVATE_KEY }}
+          PRODUCTION_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$STAGING_KEY" > ~/.ssh/staging_key
+          printf '%s\n' "$PRODUCTION_KEY" > ~/.ssh/production_key
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+          chmod 600 ~/.ssh/staging_key ~/.ssh/production_key
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Copy deployment files to Staging
+        run: |
+          scp -i ~/.ssh/staging_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            deploy/compose.deploy.yml deploy/deploy.sh \
+            "$EC2_USER@$STAGING_HOST:/opt/notes-app/deploy/"
+
+          scp -i ~/.ssh/staging_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            db/init.sql \
+            "$EC2_USER@$STAGING_HOST:/opt/notes-app/db/"
+
+      - name: Authenticate Staging to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh \
+            -i ~/.ssh/staging_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$EC2_USER@$STAGING_HOST" \
+            "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+
+      - name: Deploy application to Staging
+        run: |
+          ssh -i ~/.ssh/staging_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$EC2_USER@$STAGING_HOST" \
+            "bash /opt/notes-app/deploy/deploy.sh '$APP_IMAGE'"
+
+      - name: Verify Staging health
+        run: bash deploy/smoke-test.sh "$STAGING_URL"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Staging E2E tests
+        env:
+          BASE_URL: ${{ vars.STAGING_URL }}
+        run: npm run test:e2e -- --project=chromium
+
+      - name: Upload Playwright results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-playwright-results
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+
+      - name: Copy deployment files to Production # only runs if Staging passes
+        run: |
+          scp -i ~/.ssh/production_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            deploy/compose.deploy.yml deploy/deploy.sh \
+            "$EC2_USER@$PRODUCTION_HOST:/opt/notes-app/deploy/"
+
+          scp -i ~/.ssh/production_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            db/init.sql \
+            "$EC2_USER@$PRODUCTION_HOST:/opt/notes-app/db/"
+
+      - name: Authenticate Production to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh \
+            -i ~/.ssh/production_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$EC2_USER@$PRODUCTION_HOST" \
+            "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+
+      - name: Deploy to Production
+        id: production_deploy
+        run: |
+          ssh -i ~/.ssh/production_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$EC2_USER@$PRODUCTION_HOST" \
+            "bash /opt/notes-app/deploy/deploy.sh '$APP_IMAGE'"
+
+      - name: Verify Production health
+        id: production_health
+        run: bash deploy/smoke-test.sh "$PRODUCTION_URL"
+
+      - name: Record last known good image
+        run: |
+          printf '%s\n' "$APP_IMAGE" | ssh \
+            -i ~/.ssh/production_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$EC2_USER@$PRODUCTION_HOST" \
+            "cat > /opt/notes-app/last-good-image.txt"
+
+      - name: Roll back failed Production deployment
+        if: >-
+          ${{
+            failure() &&
+            (
+              steps.production_deploy.outcome == 'failure' ||
+              steps.production_health.outcome == 'failure'
+            )
+          }}
+        run: |
+          ssh -i ~/.ssh/production_key \
+            -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "$EC2_USER@$PRODUCTION_HOST" \
+            'if [ ! -s /opt/notes-app/last-good-image.txt ]; then
+               echo "No previous verified image available"
+               exit 1
+             fi
+             PREVIOUS_IMAGE="$(cat /opt/notes-app/last-good-image.txt)"
+             bash /opt/notes-app/deploy/deploy.sh "$PREVIOUS_IMAGE"'
+
+          bash deploy/smoke-test.sh "$PRODUCTION_URL"
