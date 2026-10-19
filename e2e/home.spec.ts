@@ -1,5 +1,51 @@
 import { test, expect } from "@playwright/test";
 
+test("search filters notes by title and content and can be cleared", async ({ page }) => {
+  const suffix = `${Date.now()}-${Math.random()}`;
+  const title = `Search demo ${suffix}`;
+  const otherTitle = `Other note ${suffix}`;
+  const content = `Unique content ${suffix}`;
+  const noteUrls: string[] = [];
+
+  try {
+    for (const [noteTitle, noteContent] of [
+      [title, content],
+      [otherTitle, "Unrelated content"],
+    ]) {
+      await page.goto("/notes/new");
+      await page.getByLabel("Title").fill(noteTitle);
+      await page.getByLabel("Content").fill(noteContent);
+      await page.getByRole("button", { name: "Save note" }).click();
+      await expect(page).toHaveURL(/\/notes\/\d+$/);
+      noteUrls.push(page.url());
+    }
+
+    await page.goto("/");
+    const search = page.getByRole("searchbox", { name: "Search notes" });
+    await search.fill(`  ${title.toUpperCase()}  `);
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: otherTitle, exact: true })).toHaveCount(0);
+
+    await search.fill(content.toUpperCase());
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: otherTitle, exact: true })).toHaveCount(0);
+
+    await search.fill(`No match ${suffix}`);
+    await expect(page.getByText("No notes match your search.")).toBeVisible();
+    await expect(page.getByRole("list")).toHaveCount(0);
+
+    await search.fill("");
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: otherTitle, exact: true })).toBeVisible();
+  } finally {
+    for (const url of noteUrls) {
+      await page.goto(url);
+      await page.getByRole("button", { name: "Delete note" }).click();
+      await expect(page).toHaveURL("/");
+    }
+  }
+});
+
 test("load home page @smoke", async ({ page }) => {
   await page.goto("/");
 
