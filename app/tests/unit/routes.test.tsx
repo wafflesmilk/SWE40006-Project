@@ -2,7 +2,7 @@
 
 import { beforeEach, afterEach, describe, expect, test, vi } from "vitest";
 import { MemoryRouter } from "react-router";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import Home from "../../routes/home";
 
 // create mock versions of the database functions
@@ -328,6 +328,46 @@ describe("note", () => {
 
 // tests for the home component to improve branch coverage
 describe("home component", () => {
+  test.each([
+    ["  SECOND  ", "Second note", "First note"],
+    ["NOTE 1", "First note", "Second note"],
+  ])("filters notes by title or content for %s", (query, match, excluded) => {
+    render(
+      <MemoryRouter>
+        <Home loaderData={{ notes: sampleNotes }} params={{}} matches={[] as never} />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search notes" }), {
+      target: { value: query },
+    });
+
+    expect(screen.getByRole("heading", { name: match })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: excluded })).toBeNull();
+    expect(screen.getByText("1 note")).toBeTruthy();
+  });
+
+  test("shows no matches and restores notes when the search is cleared", () => {
+    render(
+      <MemoryRouter>
+        <Home loaderData={{ notes: sampleNotes }} params={{}} matches={[] as never} />
+      </MemoryRouter>,
+    );
+    const search = screen.getByRole("searchbox", { name: "Search notes" });
+
+    fireEvent.change(search, { target: { value: "missing" } });
+    expect(screen.getByText("No notes match your search.")).toBeTruthy();
+    expect(screen.queryByRole("list")).toBeNull();
+    expect(screen.queryByText("No notes yet.")).toBeNull();
+
+    fireEvent.change(search, { target: { value: "" } });
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByText("2 notes")).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: "   " } });
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
   test("shows the empty state when there are no notes", () => {
     render(
       <MemoryRouter>

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import type { Route } from "./+types/home";
 import { getNotes } from "~/db.server";
@@ -12,13 +13,21 @@ export async function loader() {
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   const { notes } = loaderData;
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+  const filteredNotes = notes.filter(
+    (note) =>
+      note.title.toLowerCase().includes(query) ||
+      note.content.toLowerCase().includes(query),
+  );
+
   return (
     <main className="mx-auto max-w-3xl px-4 py-8">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">My Notes</h1>
           <p className="mt-1 text-sm text-gray-500">
-            {notes.length} {notes.length === 1 ? "note" : "notes"}
+            {filteredNotes.length} {filteredNotes.length === 1 ? "note" : "notes"}
           </p>
         </div>
         <Link
@@ -27,6 +36,20 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         >
           New note
         </Link>
+      </div>
+
+      <div className="mb-6">
+        <label htmlFor="search-notes" className="mb-2 block text-sm font-medium">
+          Search notes
+        </label>
+        <input
+          id="search-notes"
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search by title or content"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700"
+        />
       </div>
 
       {notes.length === 0 ? (
@@ -40,9 +63,13 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             Create your first note →
           </Link>
         </div>
+      ) : filteredNotes.length === 0 ? (
+        <p className="py-8 text-center text-gray-500" role="status">
+          No notes match your search.
+        </p>
       ) : (
         <ul className="grid gap-4 sm:grid-cols-2">
-          {notes.map((note) => (
+          {filteredNotes.map((note) => (
             <li key={note.id}>
               <Link
                 to={`/notes/${note.id}`}
